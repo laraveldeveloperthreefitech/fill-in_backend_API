@@ -1,0 +1,32 @@
+{
+  "authHost": "https://fillin-admin.cyberxinfosolution.com",
+  "authEndpoint": "/api/broadcasting/auth",
+  "clients": [
+    {
+      "appId": "6105d191ee7f25d3",
+      "key": "84fd33650ab8c7fcb7b05cc65bc3ef2e"
+    }
+  ],
+  "database": "redis",
+  "databaseConfig": {
+    "redis": {}
+  },
+  "devMode": true,
+  "host": null,
+  "port": "6001",
+  "protocol": "https",
+  "sslCertPath": "/etc/letsencrypt/live/fillin-admin.cyberxinfosolution.com/fullchain.pem",
+  "sslKeyPath": "/etc/letsencrypt/live/fillin-admin.cyberxinfosolution.com/privkey.pem",
+  "socketio": {},
+  "secureOptions": 67108864,
+  "subscribers": {
+    "http": true,
+    "redis": true
+  },
+  "apiOriginAllow": {
+    "allowCors": true,
+    "allowOrigin": "https://fillin-admin.cyberxinfosolution.com",
+    "allowMethods": "GET, POST",
+    "allowHeaders": "Origin, Content-Type, X-Auth-Token, X-Requested-With, Accept, Authorization, X-CSRF-TOKEN, X-Socket-Id"
+  }
+}
