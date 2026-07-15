@@ -13,6 +13,8 @@ use App\Http\Resources\Recruiter\{JobListResource, RecruiterResource};
 use App\Http\Resources\{CandidatesResource, ScheduleInterviewResource, CandidateListResource, InterviewListResource};
 use App\Services\FirebaseNotificationService;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Validator;
 use App\Models\{FillinShift, FillinShiftResponse, FillinShiftCancellationRequest, Software};
 use App\Http\Resources\Recruiter\SearchCandidateResource;
 use Illuminate\Validation\ValidationException;
@@ -989,7 +991,7 @@ return response()->json([
         // Send notification only if new request created
         if ($response->wasRecentlyCreated) {
 
-            $this->sendFillinShiftNotification(
+            $this->sendFillinShiftNotificationForCandidates(
                 $shift,
                 [$candidate->id],
                 'availability_request'
@@ -1435,7 +1437,7 @@ public function confirmBooking(Request $request)
             DB::commit();
 
             try {
-                $this->sendFillinShiftNotification(
+                $this->sendFillinShiftNotificationForCandidates(
                     $shift,
                     [$request->candidate_id],
                     'booking_confirmed'

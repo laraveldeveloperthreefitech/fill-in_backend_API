@@ -521,8 +521,8 @@ class CandidateJobController extends Controller
                     'response' => $response->response,
                     
                     // 'responded_at' => $response->responded_at,
-                    'responded_at' => $shift->responded_at
-                        ? date('Y-m-d', strtotime($shift->responded_at))
+                    'responded_at' => $response->responded_at
+                        ? date('Y-m-d', strtotime($response->responded_at))
                         : null,
                     'is_my_booking' => $isMyBooking,
 
