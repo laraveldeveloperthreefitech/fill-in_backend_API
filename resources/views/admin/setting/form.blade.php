@@ -62,6 +62,12 @@
                     </div>
 
                   <div class="mb-3">
+                    <label for="radius" class="form-label">Default Search Radius (km)</label>
+                    <input type="number" min="1" name="radius" class="form-control" value="{{ old('radius', $setting->radius ?? '') }}" placeholder="e.g. 50">
+                    <small class="text-muted">Used to filter jobs/candidates by distance when no other radius is set.</small>
+                    </div>
+
+                  <div class="mb-3">
                     <label for="logo" class="form-label">Logo</label>
                     <input type="file" name="logo" class="form-control">
                     @if(!empty($setting->logo))

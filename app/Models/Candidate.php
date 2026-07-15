@@ -130,7 +130,11 @@ class Candidate extends Authenticatable implements JWTSubject
         if ($hasLocation) {
             $latitude = $search->latitude;
             $longitude = $search->longitude;
-            $radius = $search->radius ? $search->radius : 50; // 50 km
+            // Priority: request radius -> admin global default (settings.radius) -> 50 km.
+            $globalRadius = optional(\App\Models\Setting::first())->radius;
+            $radius = $search->radius
+                ? $search->radius
+                : (!empty($globalRadius) ? $globalRadius : 50);
 
             $haversine = "(6371 * acos(cos(radians($latitude)) 
                             * cos(radians(latitude)) 

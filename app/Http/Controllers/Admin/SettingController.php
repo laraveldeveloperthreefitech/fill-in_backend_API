@@ -61,9 +61,10 @@ class SettingController extends Controller
                 'twitter' => 'nullable',
                 'instagram' => 'nullable',
                 'linkedin' => 'nullable',
+                'radius' => 'nullable|numeric|min:1',
                 'logo' => 'nullable|image|mimes:jpeg,png,jpg,gif,svg|max:2048',
             ]);
-        
+
             $setting = Setting::firstOrNew([]);
             $setting->fill($validated);
         

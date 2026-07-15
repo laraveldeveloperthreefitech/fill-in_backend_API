@@ -18,6 +18,7 @@ class Setting extends Model
         'instagram',
         'linkedin',
         'logo',
-        'terms_conditions'
+        'terms_conditions',
+        'radius'
     ];
 }
