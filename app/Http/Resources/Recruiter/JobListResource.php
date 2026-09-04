@@ -3,7 +3,7 @@
 namespace App\Http\Resources\Recruiter;
 
 use Illuminate\Http\Request;
-use App\Models\Branch;
+use App\Models\UserBranch;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class JobListResource extends JsonResource
@@ -33,7 +33,16 @@ class JobListResource extends JsonResource
             'salary_range_to'   => $this->salary_range_to,
             'experiance_level'  => $this->experiance_level,
             'shift'             => $this->shift ? explode(',',$this->shift) : [],
-           	'software'          => !empty($this->softwareList) ? $this->softwareList->pluck('id') : [],
+           	// 'software'          => !empty($this->softwareList) ? $this->softwareList->pluck('id') : [],
+           	'software' => $this->softwareList
+    ? $this->softwareList->map(function ($software) {
+        return [
+            'id'   => $software->id,
+            'name' => $software->name,
+        ];
+    })->values()
+    : [],
+            'profession'        => $this->specialization_id,
             'branches' => $this->branches->map(function ($branch) {
 
     return [
@@ -44,7 +53,6 @@ class JobListResource extends JsonResource
 })->values(),
         
         'other_software' => $this->other_software,
-            'profession'        => $this->specialization_id,
             // 'employmentTypes'   => $this->employmentTypes->map(function ($item) {
             //                             return [
             //                                 'value' => $item->id,

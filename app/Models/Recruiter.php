@@ -124,13 +124,16 @@ class Recruiter extends Authenticatable implements JWTSubject
     {
         return [];
     }
-
+    
+    
     // App\Models\Recruiter.php
 
 public function branches()
 {
     return $this->hasMany(Branch::class);
 }
+
+    
 
 
 }

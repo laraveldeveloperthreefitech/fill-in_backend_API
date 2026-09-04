@@ -23,8 +23,13 @@ class Branch extends Model
     // {
     //     return $this->belongsToMany(Job::class, 'branch_job');
     // }
+    
+    public function candidate()
+{
+    return $this->belongsTo(Candidate::class, 'candidate_id');
+}
 
-    public function jobs()
+public function jobs()
 {
     return $this->belongsToMany(
         JobListing::class,
@@ -34,8 +39,4 @@ class Branch extends Model
     );
 }
 
-public function candidate()
-{
-    return $this->belongsTo(Candidate::class, 'candidate_id');
-}
 }

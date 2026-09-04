@@ -12,6 +12,7 @@ use App\Services\FirebaseNotificationService;
 use App\Models\{FillinShift, FillinShiftResponse, FillinShiftCancellationRequest, Candidate};
 use Carbon\Carbon;
 
+use App\Http\Resources\Candidate\ShiftDetailResource;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
@@ -302,616 +303,339 @@ class CandidateJobController extends Controller
         );
     }
 
-    // public function shiftDetail(Request $request, $shiftId)
-    // {
-    //     try {
-    //         $candidate = $request->user();
+    
 
-    //         if (!$candidate) {
-    //             return response()->json([
-    //                 'success' => false,
-    //                 'message' => 'Unauthenticated candidate',
-    //             ], 401);
-    //         }
+public function shiftDetail(Request $request, $shiftId)
+{
+    try {
 
-    //         $response = FillinShiftResponse::where('fillin_shift_id', $shiftId)
-    //             ->where('candidate_id', $candidate->id)
-    //             ->first();
+        $candidate = auth()->guard('candidate')->user();
 
-    //         if (!$response) {
-    //             return response()->json([
-    //                 'success' => false,
-    //                 'message' => 'Shift request not found for this candidate',
-    //             ], 404);
-    //         }
-
-    //         $shift = FillinShift::with([
-    //             'clinic.recruiter',
-    //             'specialization'
-    //         ])->find($shiftId);
-
-    //         if (!$shift) {
-    //             return response()->json([
-    //                 'success' => false,
-    //                 'message' => 'Shift not found',
-    //             ], 404);
-    //         }
-
-    //         $clinic = $shift->clinic;
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'message' => 'Shift detail fetched successfully',
-    //             'data' => [
-    //                 'id' => $shift->id,
-    //                 'title' => $shift->title,
-
-    //                 'practice_name' => optional($clinic)->name,
-
-    //                 'specialization_id' => $shift->specialization_id,
-    //                 'specialization' => optional($shift->specialization)->name,
-
-    //                 'experiance_level' => $shift->experiance_level,
-
-    //                 'software' => $shift->software,
-    //                 'vacancy' => $shift->vacancy,
-    //                 'urgent' => $shift->urgent,
-
-    //                 'hourly_rate' => (string) $shift->hourly_rate,
-
-    //                 'description' => $shift->job_description,
-    //                 'benefits' => $shift->benefits,
-
-    //                 'expire_date' => $shift->expire_date,
-
-    //                 'city' => $shift->city,
-    //                 'address' => $shift->address,
-    //                 'short_address' => $shift->short_address,
-
-    //                 'latitude' => $shift->latitude,
-    //                 'longitude' => $shift->longitude,
-
-    //                 'practice_profile' => (
-    //                     $clinic &&
-    //                     $clinic->recruiter &&
-    //                     $clinic->recruiter->profile
-    //                 )
-    //                     ? config('filepaths.recruiter.public_url') . $clinic->recruiter->profile
-    //                     : null,
-
-    //                 'shift_date' => $shift->shift_date,
-
-    //                 'start_time' => $shift->start_time
-    //                     ? date('H:i:s', strtotime($shift->start_time))
-    //                     : null,
-
-    //                 'end_time' => $shift->end_time
-    //                     ? date('H:i:s', strtotime($shift->end_time))
-    //                     : null,
-
-    //                 'candidate_id' => $candidate->id,
-
-    //                 'response' => $response->response,
-    //                 'responded_at' => $response->responded_at,
-    //             ],
-    //         ], 200);
-
-    //     } catch (\Throwable $e) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => $e->getMessage(),
-    //             'file' => $e->getFile(),
-    //             'line' => $e->getLine(),
-    //         ], 500);
-    //     }
-    // }
-
-    public function shiftDetail(Request $request, $shiftId)
-    {
-        try {
-            $candidate = $request->user();
-
-            if (!$candidate) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthenticated candidate',
-                ], 401);
-            }
-
-            $response = FillinShiftResponse::where('fillin_shift_id', $shiftId)
-                ->where('candidate_id', $candidate->id)
-                ->first();
-
-            if (!$response) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Shift request not found for this candidate',
-                ], 404);
-            }
-
-            $shift = FillinShift::with([
+        $shift = FillinShift::with([
                 'clinic.recruiter',
                 'specialization'
-            ])->find($shiftId);
+            ])
+            ->find($shiftId);
 
-            $isMyBooking = $shift->status === 'confirmed' &&
-               $shift->booked_candidate_id == $candidate->id ? 1 : 0;
+        if (!$shift) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Shift not found.',
+            ], 404);
+        }
+
+        $response = FillinShiftResponse::where([
+                'fillin_shift_id' => $shift->id,
+                'candidate_id'    => $candidate->id,
+            ])->first();
+
+        if (!$response) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Shift request not found.',
+            ], 404);
+        }
+
+        $shift->candidate_id = $candidate->id;
+        $shift->response = $response->response;
+        $shift->responded_at = optional($response->responded_at)?->format('Y-m-d');
+
+        $shift->is_my_booking =
+            $shift->status === 'confirmed'
+            && $shift->booked_candidate_id == $candidate->id;
+
+        return response()->json([
+
+            'success' => true,
+
+            'message' => 'Shift detail fetched successfully.',
+
+            'data' => new ShiftDetailResource($shift)
+
+        ]);
+
+    } catch (\Throwable $e) {
+
+        return response()->json([
+
+            'success' => false,
+
+            'message' => $e->getMessage(),
+
+            'line' => $e->getLine(),
+
+            'file' => $e->getFile(),
+
+        ], 500);
+    }
+}
+
+
+
+public function respondAvailability(Request $request)
+{
+    try {
+
+        $validated = $request->validate([
+            'shift_id' => ['required', 'exists:fillin_shifts,id'],
+            'response' => ['required', 'in:available,not-available'],
+        ]);
+
+        $candidate = $request->user();
+
+        if (!$candidate) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthenticated candidate',
+            ], 401);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Load Shift
+        |--------------------------------------------------------------------------
+        */
+
+        $shift = FillinShift::with([
+            'clinic',
+            'specialization',
+        ])->find($validated['shift_id']);
+
+        if (!$shift) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Shift not found',
+            ], 404);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Load Candidate Response
+        |--------------------------------------------------------------------------
+        */
+
+        $shiftResponse = FillinShiftResponse::where([
+            'fillin_shift_id' => $shift->id,
+            'candidate_id'    => $candidate->id,
+        ])->first();
+
+        if (!$shiftResponse) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Shift request not found for this candidate',
+            ], 404);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Already Responded
+        |--------------------------------------------------------------------------
+        */
+
+        if (in_array($shiftResponse->response, ['available', 'not-available'])) {
+
+            return response()->json([
+                'success' => false,
+                'message' => 'You have already responded to this shift.',
+                'data' => [
+                    'shift_id'         => $shift->id,
+                    'candidate_id'     => $candidate->id,
+                    'current_response' => $shiftResponse->response,
+                    'responded_at'     => optional($shiftResponse->responded_at)
+                        ->format('Y-m-d H:i:s'),
+                ]
+            ], 422);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Save Response
+        |--------------------------------------------------------------------------
+        */
+
+        $shiftResponse->update([
+            'response'     => $validated['response'],
+            'responded_at' => now(),
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Send Notification
+        |--------------------------------------------------------------------------
+        */
+
+        try {
+
+            $this->sendAvailabilityNotification(
+                $shift,
+                $candidate,
+                $validated['response']
+            );
+
+        } catch (\Throwable $e) {
+
+            Log::error('Availability Notification Failed', [
+                'message' => $e->getMessage(),
+            ]);
+        }
+
+        $shiftResponse->refresh();
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Response submitted successfully.',
+            'data' => [
+                'shift_id'     => $shift->id,
+                'title'        => $shift->title,
+                'candidate_id' => $candidate->id,
+                'response'     => $shiftResponse->response,
+                'responded_at' => optional($shiftResponse->responded_at)
+                    ->format('Y-m-d H:i:s'),
+            ]
+        ]);
+
+    } catch (ValidationException $e) {
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Validation error',
+            'errors'  => $e->errors(),
+        ], 422);
+
+    } catch (\Throwable $e) {
+
+        Log::error('Respond Availability Error', [
+            'message' => $e->getMessage(),
+            'file'    => $e->getFile(),
+            'line'    => $e->getLine(),
+        ]);
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Something went wrong.',
+        ], 500);
+    }
+}
+
+  public function myFillinBookings(Request $request)
+{
+    try {
+
+        $candidate = $request->user();
+        $status = $request->input('status', 'all');
+
+        $query = FillinShiftResponse::query()
+            ->where('candidate_id', $candidate->id)
+            ->with([
+                'shift.specialization:id,name',
+                'shift.clinic',
+                'shift.clinic.recruiter',
+            ]);
+
+        $query->when($status !== 'all', function ($q) use ($status, $candidate) {
+
+            if ($status === 'confirmed') {
+
+                $q->whereHas('shift', function ($shift) use ($candidate) {
+                    $shift->where('status', 'confirmed')
+                        ->where('booked_candidate_id', $candidate->id);
+                });
+
+            } else {
+
+                $q->where('response', $status);
+            }
+        });
+
+        $responses = $query
+            ->join(
+                'fillin_shifts',
+                'fillin_shift_responses.fillin_shift_id',
+                '=',
+                'fillin_shifts.id'
+            )
+            ->latest('fillin_shifts.created_at')
+            ->select('fillin_shift_responses.*')
+            ->get();
+
+        $data = $responses->map(function ($response) use ($candidate) {
+
+            $shift = $response->shift;
 
             if (!$shift) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Shift not found',
-                ], 404);
+                return null;
             }
 
             $clinic = $shift->clinic;
-            $recruiter = optional($clinic)->recruiter;
+            $recruiter = $clinic?->recruiter;
 
-            // Software Names
-            $softwareNames = [];
+            return [
+                'shift_id' => $shift->id,
+                'title' => $shift->title,
+                'specialization' => $shift->specialization?->name,
+                'hourly_rate' => number_format((float) $shift->hourly_rate, 2, '.', ''),
+                'address' => $shift->address,
+                'short_address' => $shift->short_address,
+                'city' => $shift->city,
+                'expire_date' => $shift->expire_date,
 
-            if (!empty($shift->software) && is_array($shift->software)) {
-                $softwareNames = Software::whereIn('id', $shift->software)
-                    ->pluck('name')
-                    ->values()
-                    ->toArray();
-            }
+                'my_response' => $response->response ?? 'pending',
+                'my_response_at' => $response->responded_at,
 
-            return response()->json([
-                'success' => true,
-                'message' => 'Shift detail fetched successfully',
-                'data' => [
-                    'id' => $shift->id,
-                    'title' => $shift->title,
+                'shift_status' => $this->getCandidateShiftStatus($shift),
 
-                    // P1
+                'is_my_booking' => (
+                    $shift->status === 'confirmed'
+                    && $shift->booked_candidate_id == $candidate->id
+                ),
+
+                'recruiter' => [
+                    'id' => $clinic?->recruiter_id,
                     'clinic_id' => $clinic?->id,
-                    'recruiter_id' => $recruiter?->id,
+                    'practice_name' => $clinic?->practice_name ?? $clinic?->name,
+                    'profile' => !empty($clinic?->profile)
+                        ? config('filepaths.clinic.public_url') . $clinic->profile
+                        : null,
+                    'description' => $clinic?->description,
+                    'address' => $clinic?->address,
+                    'postcode' => $clinic?->postcode,
+                    'phone' => $clinic?->phone,
+                    'web_link' => $clinic?->web_link,
+                    'established_year' => $clinic?->established_year,
+                    'practice_size' => $clinic?->practice_size,
+                    'working_hours' => $clinic?->working_hours,
+                    'verification' => $clinic?->verification,
+                    'status' => $clinic?->status,
 
-                    'practice_name' => $clinic?->name,
-
-                    'specialization_id' => $shift->specialization_id,
-                    'specialization' => optional($shift->specialization)->name,
-
-                    'experiance_level' => $shift->experiance_level,
-
-                    // P3
-                    'software' => $shift->software,
-                    'software_names' => $softwareNames,
-                    'other_software' => $shift->other_software,
-
-                    'vacancy' => $shift->vacancy,
-                    'urgent' => $shift->urgent,
-
-                    'hourly_rate' => (string) $shift->hourly_rate,
-
-                    'description' => $shift->job_description,
-                    'benefits' => $shift->benefits,
-
-                    'expire_date' => $shift->expire_date,
-
-                    // 'city' => $shift->city,
-                    'address' => $shift->address,
-                    'short_address' => $shift->short_address,
-
-                    'latitude' => $shift->latitude,
-                    'longitude' => $shift->longitude,
-
-                    'practice_profile' => (
-                        $recruiter &&
-                        $recruiter->profile
-                    )
+                    'recruiter_name' => $recruiter?->name,
+                    'recruiter_email' => $recruiter?->email,
+                    'recruiter_profile' => !empty($recruiter?->profile)
                         ? config('filepaths.recruiter.public_url') . $recruiter->profile
                         : null,
-
-                    // P2
-                    'shift_date' => $shift->shift_date
-                        ? date('Y-m-d', strtotime($shift->shift_date))
-                        : null,
-
-                    'start_time' => $shift->start_time
-                        ? date('H:i', strtotime($shift->start_time))
-                        : null,
-
-                    'end_time' => $shift->end_time
-                        ? date('H:i', strtotime($shift->end_time))
-                        : null,
-
-                    'candidate_id' => $candidate->id,
-                    'response' => $response->response,
-                    
-                    // 'responded_at' => $response->responded_at,
-                    'responded_at' => $response->responded_at
-                        ? date('Y-m-d', strtotime($response->responded_at))
-                        : null,
-                    'is_my_booking' => $isMyBooking,
-
-                    'created_at' => $shift->created_at,
-                    'updated_at' => $shift->updated_at,
                 ],
-            ], 200);
-        } catch (\Throwable $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-            ], 500);
-        }
-    }
 
-    // public function respondAvailability(Request $request)
-    // {
-    //     try {
-    //         $request->validate([
-    //             'shift_id' => 'required|exists:fillin_shifts,id',
-    //             'response' => 'required|in:available,not_available',
-    //         ]);
+                'created_at' => $shift->created_at,
+            ];
+        })->filter()->values();
 
-    //         $candidate = $request->user();
-
-    //         $shiftResponse = FillinShiftResponse::where('fillin_shift_id', $request->shift_id)
-    //             ->where('candidate_id', $candidate->id)
-    //             ->first();
-
-    //         if (!$shiftResponse) {
-    //             return response()->json([
-    //                 'success' => false,
-    //                 'message' => 'Shift request not found for this candidate',
-    //             ], 404);
-    //         }
-
-    //         $shiftResponse->update([
-    //             'response' => $request->response,
-    //             'responded_at' => now(),
-    //         ]);
-
-    //         $shift = FillinShift::with(['clinic', 'specialization'])
-    //             ->find($request->shift_id);
-
-    //         if (!$shift) {
-    //             return response()->json([
-    //                 'success' => false,
-    //                 'message' => 'Shift not found',
-    //             ], 404);
-    //         }
-
-    //         if ($request->response === 'available') {
-    //             $date = Carbon::parse($shift->shift_date)->format('M d, Y');
-
-    //             $this->sendPushNotification(
-    //                 $shift->clinic->user ?? null,
-    //                 'Candidate Available',
-    //                 "{$candidate->name} is available for your {$date} shift",
-    //                 [
-    //                     'type' => 'fillin_candidate_available',
-    //                     'screen' => 'FILLIN_AVAILABLE_RESPONSES',
-    //                     'shiftId' => $shift->id,
-    //                 ]
-    //             );
-    //         }
-
-    //         return response()->json([
-    //             'success' => true,
-    //             'message' => 'Response sent successfully',
-    //             'data' => [
-    //                 'shift_id' => $shift->id,
-    //                 'candidate_id' => $candidate->id,
-    //                 'response' => $shiftResponse->response,
-    //                 'responded_at' => $shiftResponse->responded_at,
-    //             ],
-    //         ], 200);
-
-    //     } catch (ValidationException $e) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => 'Validation error',
-    //             'errors' => $e->errors(),
-    //         ], 422);
-
-    //     } catch (\Throwable $e) {
-    //         return response()->json([
-    //             'success' => false,
-    //             'message' => $e->getMessage(),
-    //             'file' => $e->getFile(),
-    //             'line' => $e->getLine(),
-    //         ], 500);
-    //     }
-    // }
-
-
-    
-    public function respondAvailability(Request $request)
-{
-try {
-
-    $request->validate([
-        'shift_id' => 'required|exists:fillin_shifts,id',
-        'response' => 'required|in:available,not-available',
-    ]);
-
-    $candidate = $request->user();
-
-    if (!$candidate) {
         return response()->json([
-            'success' => false,
-            'message' => 'Unauthenticated candidate',
-        ], 401);
-    }
-
-    $shiftResponse = FillinShiftResponse::where('fillin_shift_id', $request->shift_id)
-        ->where('candidate_id', $candidate->id)
-        ->first();
-
-    if (!$shiftResponse) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Shift request not found for this candidate',
-        ], 404);
-    }
-
-    $shift = FillinShift::with([
-        'clinic',
-        'specialization',
-    ])->find($request->shift_id);
-
-    if (!$shift) {
-        return response()->json([
-            'success' => false,
-            'message' => 'Shift not found',
-        ], 404);
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Candidate already responded
-    |--------------------------------------------------------------------------
-    */
-    if (
-        !empty($shiftResponse->response) &&
-        in_array($shiftResponse->response, ['available', 'not-available'])
-    ) {
-        return response()->json([
-            'success' => false,
-            'message' => 'You have already responded to this shift. Response cannot be changed.',
-            'data' => [
-                'shift_id' => $shift->id,
-                'candidate_id' => $candidate->id,
-                'current_response' => $shiftResponse->response,
-                'responded_at' => $shiftResponse->responded_at,
-                //  'responded_at' => $shiftResponse->responded_at
-                //     ? $shiftResponse->responded_at->format('Y-m-d')
-                //     : null,
-            ]
-        ], 422);
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Save candidate response
-    |--------------------------------------------------------------------------
-    */
-    $shiftResponse->update([
-        'response' => $request->response,
-        'responded_at' => now(),
-    ]);
-
-    /*
-    |--------------------------------------------------------------------------
-    | Notify recruiter
-    |--------------------------------------------------------------------------
-    */
-    try {
-
-        $this->sendAvailabilityNotification(
-            $shift,
-            $candidate,
-            $request->response
-        );
-
-    } catch (\Exception $notificationException) {
-
-        \Log::error(
-            'Availability notification failed: ' .
-            $notificationException->getMessage()
-        );
-    }
-
-    $shiftResponse->refresh();
-
-    return response()->json([
-        'success' => true,
-        'message' => 'Response submitted successfully',
-        'data' => [
-            'shift_id' => $shift->id,
-            'title' => $shift->title,
-            'candidate_id' => $candidate->id,
-            'response' => $shiftResponse->response,
-            'responded_at' => $shiftResponse->responded_at,
-    //          'responded_at' => $shiftResponse->responded_at
-    // ? $shiftResponse->responded_at->format('Y-m-d')
-    // : null,
-        ],
-    ], 200);
-
-} catch (ValidationException $e) {
-
-    return response()->json([
-        'success' => false,
-        'message' => 'Validation error',
-        'errors' => $e->errors(),
-    ], 422);
-
-} catch (\Throwable $e) {
-
-    \Log::error('Respond Availability Error', [
-        'message' => $e->getMessage(),
-        'file' => $e->getFile(),
-        'line' => $e->getLine(),
-    ]);
-
-    return response()->json([
-        'success' => false,
-        'message' => $e->getMessage(),
-        'file' => $e->getFile(),
-        'line' => $e->getLine(),
-    ], 500);
-}
-
-}
-
-
-   public function myFillinBookings(Request $request)
-{
-try {
-
-    $candidate = $request->user();
-
-    $query = FillinShiftResponse::query()
-        ->where('candidate_id', $candidate->id)
-        ->with([
-            'shift.specialization',
-            'shift.clinic.recruiter',
+            'success' => true,
+            'message' => 'My fill-in bookings fetched successfully',
+            'total' => $data->count(),
+            'data' => $data,
         ]);
 
-    $status = $request->get('status', 'all');
+    } catch (\Throwable $e) {
 
-    if ($status !== 'all') {
-
-        if ($status === 'confirmed') {
-
-            $query->whereHas('shift', function ($q) use ($candidate) {
-                $q->where('status', 'confirmed')
-                    ->where('booked_candidate_id', $candidate->id);
-            });
-
-        } else {
-
-            $query->where('response', $status);
-        }
+        return response()->json([
+            'success' => false,
+            'message' => config('app.debug')
+                ? $e->getMessage()
+                : 'Something went wrong.',
+        ], 500);
     }
-
-    $responses = $query
-        ->join(
-            'fillin_shifts',
-            'fillin_shift_responses.fillin_shift_id',
-            '=',
-            'fillin_shifts.id'
-        )
-        ->orderByDesc('fillin_shifts.created_at')
-        ->select('fillin_shift_responses.*')
-        ->get();
-
-    $data = $responses->map(function ($response) use ($candidate) {
-
-        $shift = $response->shift;
-
-        if (!$shift) {
-            return null;
-        }
-
-        $clinic = $shift->clinic;
-
-        return [
-            'shift_id' => $shift->id,
-            'title' => $shift->title,
-
-            'specialization' => optional(
-                $shift->specialization
-            )->name,
-
-            'hourly_rate' => number_format(
-                (float) $shift->hourly_rate,
-                2,
-                '.',
-                ''
-            ),
-
-            'address' => $shift->address,
-            'short_address' => $shift->short_address,
-            'city' => $shift->city,
-            'expire_date' => $shift->expire_date,
-
-            'my_response' => $response->response ?? 'pending',
-
-            'my_response_at' => $response->responded_at,
-
-            'shift_status' => $this->getCandidateShiftStatus($shift),
-
-            'is_my_booking' => (
-                $shift->status === 'confirmed'
-                && (int) $shift->booked_candidate_id === (int) $candidate->id
-            ),
-
-            'recruiter' => [
-                'id' => $clinic->recruiter_id ?? null,
-                'clinic_id' => $clinic->id ?? null,
-
-                'practice_name' =>
-                    $clinic->practice_name
-                    ?? $clinic->name
-                    ?? null,
-
-                'profile' => !empty($clinic->profile)
-                    ? config('filepaths.clinic.public_url')
-                        . $clinic->profile
-                    : null,
-
-                'description' => $clinic->description ?? null,
-                'address' => $clinic->address ?? null,
-                'postcode' => $clinic->postcode ?? null,
-                'phone' => $clinic->phone ?? null,
-                'web_link' => $clinic->web_link ?? null,
-
-                'established_year' =>
-                    $clinic->established_year ?? null,
-
-                'practice_size' =>
-                    $clinic->practice_size ?? null,
-
-                'working_hours' =>
-                    $clinic->working_hours ?? null,
-
-                'verification' =>
-                    $clinic->verification ?? null,
-
-                'status' => $clinic->status ?? null,
-
-                'recruiter_name' =>
-                    $clinic->recruiter->name ?? null,
-
-                'recruiter_email' =>
-                    $clinic->recruiter->email ?? null,
-
-                'recruiter_profile' =>
-                    !empty($clinic->recruiter->profile)
-                    ? config('filepaths.recruiter.public_url')
-                        . $clinic->recruiter->profile
-                    : null,
-            ],
-
-            'created_at' => $shift->created_at,
-        ];
-    })->filter()->values();
-
-    return response()->json([
-        'success' => true,
-        'message' => 'My fill-in bookings fetched successfully',
-        'total' => $data->count(),
-        'data' => $data,
-    ], 200);
-
-} catch (\Throwable $e) {
-
-    return response()->json([
-        'success' => false,
-        'message' => $e->getMessage(),
-        'line' => $e->getLine(),
-        'file' => $e->getFile(),
-    ], 500);
-}
-
-
 }
 
 
@@ -966,25 +690,28 @@ try {
     }
 
 
-    public function calendar(Request $request)
-    {
-        $request->validate([
-            'from' => 'required|date',
-            'to'   => 'required|date',
-        ]);
+public function calendar(Request $request)
+{
+    $request->validate([
+        'from' => ['required', 'date'],
+        'to'   => ['required', 'date', 'after_or_equal:from'],
+    ]);
+
+    try {
 
         $candidate = $request->user();
 
-        $responses = FillinShiftResponse::with([
-            'shift.clinic.recruiter'
-        ])
+        $responses = FillinShiftResponse::query()
             ->where('candidate_id', $candidate->id)
             ->whereHas('shift', function ($q) use ($request) {
                 $q->whereBetween('shift_date', [
                     $request->from,
-                    $request->to
+                    $request->to,
                 ]);
             })
+            ->with([
+                'shift.clinic.recruiter',
+            ])
             ->get();
 
         $data = $responses->map(function ($response) {
@@ -995,28 +722,22 @@ try {
                 return null;
             }
 
-            if (
-                $shift->status === 'confirmed' &&
-                $shift->booked_candidate_id == $response->candidate_id
-            ) {
-                $status = 'confirmed';
-            } elseif ($response->response === 'available') {
-                $status = 'accepted';
-            } elseif ($response->response === 'not-available') {
-                $status = 'declined';
-            } else {
-                $status = 'requested';
-            }
+            $status = match (true) {
+                $shift->status === 'confirmed'
+                    && $shift->booked_candidate_id == $response->candidate_id => 'confirmed',
+
+                $response->response === 'available'     => 'accepted',
+                $response->response === 'not-available' => 'declined',
+
+                default => 'requested',
+            };
 
             return [
                 'id' => $shift->id,
                 'title' => $shift->title,
-                'practice_name' => optional($shift->clinic)->name,
-                'recruiter_id' => optional(
-                    optional($shift->clinic)->recruiter
-                )->id,
-                // 'date' => $shift->shift_date,
-                'date' => date('Y-m-d', strtotime($shift->shift_date)),
+                'practice_name' => $shift->clinic?->name,
+                'recruiter_id' => $shift->clinic?->recruiter?->id,
+                'date' => $shift->shift_date?->format('Y-m-d') ?? date('Y-m-d', strtotime($shift->shift_date)),
                 'start_time' => date('H:i', strtotime($shift->start_time)),
                 'end_time' => date('H:i', strtotime($shift->end_time)),
                 'status' => $status,
@@ -1025,346 +746,139 @@ try {
 
         return response()->json([
             'status' => true,
-            'message' => 'Calendar fetched',
+            'message' => 'Calendar fetched successfully.',
             'data' => $data,
         ]);
+
+    } catch (\Throwable $e) {
+
+        return response()->json([
+            'status' => false,
+            'message' => config('app.debug')
+                ? $e->getMessage()
+                : 'Something went wrong.',
+        ], 500);
     }
+}
     
-//   public function completeShift(Request $request)
-// {
-//     try {
 
-//         $validated = $request->validate([
-//             'shift_id' => 'required|exists:fillin_shifts,id',
-//         ]);
-
-//         $candidate = $request->user();
-
-//         $shift = FillinShift::find($validated['shift_id']);
-
-//         if (!$shift) {
-//             return response()->json([
-//                 'success' => false,
-//                 'message' => 'Shift not found.'
-//             ],404);
-//         }
-
-//         // Candidate must be booked
-//         if ((int)$shift->booked_candidate_id !== (int)$candidate->id) {
-
-//             return response()->json([
-//                 'success' => false,
-//                 'message' => 'This shift is not assigned to you.'
-//             ],403);
-//         }
-
-//         // Booking must be confirmed
-//         if ($shift->status != 'confirmed') {
-
-//             return response()->json([
-//                 'success' => false,
-//                 'message' => 'Only confirmed shifts can be completed.'
-//             ],422);
-//         }
-
-//         // Already completed
-//         if ($shift->candidate_completed) {
-
-//             return response()->json([
-//                 'success' => false,
-//                 'message' => 'Shift already marked as completed.'
-//             ],422);
-//         }
-
-//         $shift->update([
-//             'candidate_completed' => 1,
-//             'candidate_completed_at' => now(),
-//         ]);
-
-//         // Optional
-//         // Notify recruiter here
-
-//         return response()->json([
-//             'success' => true,
-//             'message' => 'Shift marked as completed successfully.',
-//             'data' => [
-//                 'shift_id' => $shift->id,
-//                 'candidate_completed' => true,
-//                 'candidate_completed_at' => $shift->candidate_completed_at,
-//             ]
-//         ]);
-
-//     } catch (ValidationException $e) {
-
-//         return response()->json([
-//             'success'=>false,
-//             'message'=>'Validation Error',
-//             'errors'=>$e->errors()
-//         ],422);
-
-//     } catch (\Throwable $e) {
-
-//         return response()->json([
-//             'success'=>false,
-//             'message'=>$e->getMessage()
-//         ],500);
-//     }
-// }
-
-// public function completedFillinShifts(Request $request)
-// {
-//     try {
-
-//         $candidate = $request->user();
-
-//         $responses = FillinShiftResponse::where('candidate_id', $candidate->id)
-//             ->whereHas('shift', function ($q) use ($candidate) {
-//                 $q->where('status', 'completed')
-//                     ->where('booked_candidate_id', $candidate->id);
-//             })
-//             ->with([
-//                 'shift.specialization',
-//                 'shift.clinic.recruiter',
-//             ])
-//             ->orderByDesc('responded_at')
-//             ->get();
-
-//         $data = $responses->map(function ($response) {
-
-//             $shift = $response->shift;
-
-//             if (!$shift) {
-//                 return null;
-//             }
-
-//             $clinic = $shift->clinic;
-
-//             return [
-
-//                 'shift_id' => $shift->id,
-//                 'title' => $shift->title,
-
-//                 'specialization' => optional(
-//                     $shift->specialization
-//                 )->name,
-
-//                 'hourly_rate' => number_format(
-//                     (float) $shift->hourly_rate,
-//                     2,
-//                     '.',
-//                     ''
-//                 ),
-
-//                 'shift_date' => $shift->shift_date,
-//                 'start_time' => $shift->start_time,
-//                 'end_time' => $shift->end_time,
-
-//                 'address' => $shift->address,
-//                 'short_address' => $shift->short_address,
-//                 'city' => $shift->city,
-
-//                 'status' => $shift->status,
-
-//                 'candidate_completed' => (bool) $shift->candidate_completed,
-//                 'candidate_completed_at' => $shift->candidate_completed_at,
-//                 'completed_at' => $shift->completed_at,
-
-//                 'clinic' => [
-//                     'id' => $clinic->id ?? null,
-//                     'practice_name' => $clinic->practice_name ?? $clinic->name ?? null,
-//                     'profile' => !empty($clinic->profile)
-//                         ? config('filepaths.clinic.public_url') . $clinic->profile
-//                         : null,
-//                     'address' => $clinic->address ?? null,
-//                     'phone' => $clinic->phone ?? null,
-//                     'recruiter_name' => $clinic->recruiter->name ?? null,
-//                     'recruiter_email' => $clinic->recruiter->email ?? null,
-//                 ],
-
-//                 'created_at' => $shift->created_at,
-
-//             ];
-//         })->filter()->values();
-
-//         return response()->json([
-//             'success' => true,
-//             'message' => 'Completed fill-in shifts fetched successfully.',
-//             'total' => $data->count(),
-//             'data' => $data,
-//         ], 200);
-
-//     } catch (\Throwable $e) {
-
-//         \Log::error('Completed Candidate Fill-in Shifts Error', [
-//             'message' => $e->getMessage(),
-//             'file' => $e->getFile(),
-//             'line' => $e->getLine(),
-//         ]);
-
-//         return response()->json([
-//             'success' => false,
-//             'message' => 'Something went wrong.',
-//         ], 500);
-//     }
-// }
 
 // =================================================
 
 public function requestCancellation(Request $request)
 {
+    $request->validate([
+        'shift_id'   => 'required|exists:fillin_shifts,id',
+        'reason'     => 'required|string|max:500',
+        'notes'      => 'nullable|string',
+        'attachment' => 'nullable|file|mimes:jpg,jpeg,png,pdf,doc,docx|max:2048',
+    ]);
+
     try {
-
-        $validator = Validator::make($request->all(), [
-            'shift_id'   => 'required|exists:fillin_shifts,id',
-            'reason'     => 'required|string|max:500',
-            'notes'      => 'nullable|string',
-            'attachment' => 'nullable|file|mimes:jpg,jpeg,png,pdf,doc,docx|max:2048',
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json([
-                'status' => false,
-                'message' => $validator->errors()->first(),
-            ], 422);
-        }
 
         $candidate = $request->user();
 
-        DB::beginTransaction();
+        $cancellation = DB::transaction(function () use ($request, $candidate) {
 
-        $shift = FillinShift::where('id', $request->shift_id)
-            ->lockForUpdate()
-            ->first();
+            $shift = FillinShift::with('clinic.recruiter')
+                ->lockForUpdate()
+                ->find($request->shift_id);
 
-        if (!$shift) {
-
-            DB::rollBack();
-
-            return response()->json([
-                'status' => false,
-                'message' => 'Shift not found.',
-            ]);
-        }
-
-        // Only booked candidate can request cancellation
-        if (
-            $shift->status !== 'confirmed' ||
-            (int)$shift->booked_candidate_id !== (int)$candidate->id
-        ) {
-
-            DB::rollBack();
-
-            return response()->json([
-                'status' => false,
-                'message' => 'Only accepted bookings can request cancellation.',
-            ]);
-        }
-
-        // Prevent duplicate pending request
-        $alreadyPending = FillinShiftCancellationRequest::where(
-                'fillin_shift_id',
-                $shift->id
-            )
-            ->where('candidate_id', $candidate->id)
-            ->where('status', 'pending')
-            ->exists();
-
-        if ($alreadyPending) {
-
-            DB::rollBack();
-
-            return response()->json([
-                'status' => false,
-                'message' => 'Cancellation request already submitted.',
-            ]);
-        }
-
-        $attachment = null;
-
-        if ($request->hasFile('attachment')) {
-
-            $file = $request->file('attachment');
-
-            $filename = time() . '_' . uniqid() . '.' .
-                $file->getClientOriginalExtension();
-
-            $file->move(
-                public_path('uploads/cancellation'),
-                $filename
-            );
-
-            $attachment = 'uploads/cancellation/' . $filename;
-        }
-
-        $cancellation = FillinShiftCancellationRequest::create([
-
-            'fillin_shift_id' => $shift->id,
-
-            'candidate_id' => $candidate->id,
-
-            'clinic_id' => $shift->clinic_id,
-
-            'reason' => $request->reason,
-
-            'notes' => $request->notes,
-
-            'attachment' => $attachment,
-
-            'status' => 'pending',
-
-        ]);
-
-        $recruiter = Recruiter::find($shift->clinic->recruiter_id ?? null);
-        $candidateProfile = $candidate->profile ? $candidate->profile : '';
-
-        if ($recruiter) {
-            $recruiter->notify(new \App\Notifications\RecruiterFCMNotification(
-                $candidate->name . ' requested to cancel ' . $shift->title,
-                'Cancellation request',
-                null,
-                $candidateProfile,
-                'cancellation_request',
-                $cancellation->id,
-                'candidate'
-            ));
-
-            foreach ($recruiter->fcmTokens as $fcm) {
-                $this->fcm->sendToToken(
-                    $fcm->fcm_token,
-                    'Cancellation request',
-                    $candidate->name . ' requested to cancel ' . $shift->title,
-                    'cancellation_request',
-                    $cancellation->id,
-                    $candidateProfile,
-                    'candidate'
-                );
+            if (!$shift) {
+                throw new \Exception('Shift not found.');
             }
-        }
 
-        DB::commit();
+            if (
+                $shift->status !== 'confirmed' ||
+                $shift->booked_candidate_id != $candidate->id
+            ) {
+                throw new \Exception('Only confirmed bookings can request cancellation.');
+            }
+
+            $alreadyPending = FillinShiftCancellationRequest::where([
+                'fillin_shift_id' => $shift->id,
+                'candidate_id'    => $candidate->id,
+                'status'          => 'pending',
+            ])->exists();
+
+            if ($alreadyPending) {
+                throw new \Exception('Cancellation request already submitted.');
+            }
+
+            $attachment = null;
+
+            if ($request->hasFile('attachment')) {
+
+                $file = $request->file('attachment');
+
+                $filename = uniqid() . '_' . time() . '.' . $file->getClientOriginalExtension();
+
+                $file->move(public_path('uploads/cancellation'), $filename);
+
+                $attachment = 'uploads/cancellation/' . $filename;
+            }
+
+            $cancellation = FillinShiftCancellationRequest::create([
+                'fillin_shift_id' => $shift->id,
+                'candidate_id'    => $candidate->id,
+                'clinic_id'       => $shift->clinic_id,
+                'reason'          => $request->reason,
+                'notes'           => $request->notes,
+                'attachment'      => $attachment,
+                'status'          => 'pending',
+            ]);
+
+            $recruiter = $shift->clinic?->recruiter;
+
+            if ($recruiter) {
+
+                $candidateProfile = $candidate->profile ?? '';
+
+                $title = 'Cancellation request';
+                $body = "{$candidate->name} requested to cancel {$shift->title}";
+
+                $recruiter->notify(
+                    new \App\Notifications\RecruiterFCMNotification(
+                        $body,
+                        $title,
+                        null,
+                        $candidateProfile,
+                        'cancellation_request',
+                        $cancellation->id,
+                        'candidate'
+                    )
+                );
+
+                foreach ($recruiter->fcmTokens as $token) {
+
+                    $this->fcm->sendToToken(
+                        $token->fcm_token,
+                        $title,
+                        $body,
+                        'cancellation_request',
+                        $cancellation->id,
+                        $candidateProfile,
+                        'candidate'
+                    );
+                }
+            }
+
+            return $cancellation;
+        });
 
         return response()->json([
-
             'status' => true,
-
             'message' => 'Cancellation request submitted successfully.',
-
             'data' => $cancellation,
-
         ]);
 
     } catch (\Throwable $e) {
 
-        DB::rollBack();
-
         return response()->json([
-
             'status' => false,
-
-            'message' => $e->getMessage(),
-
-            'line' => $e->getLine(),
-
+            'message' => config('app.debug')
+                ? $e->getMessage()
+                : 'Something went wrong.',
         ], 500);
     }
 }
@@ -1375,31 +889,29 @@ public function myCancellationRequests(Request $request)
     try {
 
         $candidate = $request->user();
+        $status = $request->input('status', 'all');
 
-        $query = FillinShiftCancellationRequest::with([
-            'shift.specialization',
-            'clinic.recruiter'
-        ])
-        ->where('candidate_id', $candidate->id);
-
-        $status = $request->get('status', 'all');
-
-        if ($status != 'all') {
-            $query->where('status', $status);
-        }
-
-        $requests = $query->latest()->get();
+        $requests = FillinShiftCancellationRequest::query()
+            ->where('candidate_id', $candidate->id)
+            ->with([
+                'shift.specialization:id,name',
+                'clinic:id,name,address',
+            ])
+            ->when($status !== 'all', function ($query) use ($status) {
+                $query->where('status', $status);
+            })
+            ->latest()
+            ->get();
 
         $data = $requests->map(function ($item) {
 
+            $shift = $item->shift;
+            $clinic = $item->clinic;
+
             return [
-
                 'request_id' => $item->id,
-
                 'status' => $item->status,
-
                 'reason' => $item->reason,
-
                 'notes' => $item->notes,
 
                 'attachment' => $item->attachment
@@ -1407,43 +919,27 @@ public function myCancellationRequests(Request $request)
                     : null,
 
                 'recruiter_remark' => $item->recruiter_remark,
-
                 'approved_at' => $item->approved_at,
 
                 'shift' => [
-
-                    'id' => optional($item->shift)->id,
-
-                    'title' => optional($item->shift)->title,
-
-                    'specialization' => optional(optional($item->shift)->specialization)->name,
-
-                    'hourly_rate' => optional($item->shift)->hourly_rate,
-
-                    'shift_date' => optional($item->shift)->shift_date,
-
-                    'start_time' => optional($item->shift)->start_time,
-
-                    'end_time' => optional($item->shift)->end_time,
-
-                    'status' => optional($item->shift)->status,
-
+                    'id' => $shift?->id,
+                    'title' => $shift?->title,
+                    'specialization' => $shift?->specialization?->name,
+                    'hourly_rate' => $shift?->hourly_rate,
+                    'shift_date' => $shift?->shift_date,
+                    'start_time' => $shift?->start_time,
+                    'end_time' => $shift?->end_time,
+                    'status' => $shift?->status,
                 ],
 
                 'clinic' => [
-
-                    'id' => optional($item->clinic)->id,
-
-                    'name' => optional($item->clinic)->name,
-
-                    'address' => optional($item->clinic)->address,
-
+                    'id' => $clinic?->id,
+                    'name' => $clinic?->name,
+                    'address' => $clinic?->address,
                 ],
 
                 'created_at' => $item->created_at,
-
             ];
-
         });
 
         return response()->json([
@@ -1457,10 +953,10 @@ public function myCancellationRequests(Request $request)
 
         return response()->json([
             'status' => false,
-            'message' => $e->getMessage(),
-            'line' => $e->getLine(),
-            'file' => $e->getFile(),
-        ],500);
+            'message' => config('app.debug')
+                ? $e->getMessage()
+                : 'Something went wrong.',
+        ], 500);
     }
 }
 
@@ -1471,35 +967,32 @@ public function cancellationRequestDetail(Request $request, $id)
 
         $candidate = $request->user();
 
-        $cancellation = FillinShiftCancellationRequest::with([
-            'shift.specialization',
-            'clinic.recruiter'
-        ])
-        ->where('candidate_id', $candidate->id)
-        ->find($id);
+        $cancellation = FillinShiftCancellationRequest::query()
+            ->where('candidate_id', $candidate->id)
+            ->with([
+                'shift.specialization:id,name',
+                'clinic.recruiter:id,email',
+            ])
+            ->find($id);
 
         if (!$cancellation) {
-
             return response()->json([
                 'status' => false,
                 'message' => 'Cancellation request not found.',
-            ],404);
+            ], 404);
         }
 
+        $shift = $cancellation->shift;
+        $clinic = $cancellation->clinic;
+        $recruiter = $clinic?->recruiter;
+
         return response()->json([
-
             'status' => true,
-
             'message' => 'Cancellation request detail fetched successfully.',
-
             'data' => [
-
                 'request_id' => $cancellation->id,
-
                 'status' => $cancellation->status,
-
                 'reason' => $cancellation->reason,
-
                 'notes' => $cancellation->notes,
 
                 'attachment' => $cancellation->attachment
@@ -1507,62 +1000,42 @@ public function cancellationRequestDetail(Request $request, $id)
                     : null,
 
                 'recruiter_remark' => $cancellation->recruiter_remark,
-
                 'approved_at' => $cancellation->approved_at,
 
                 'shift' => [
-
-                    'id' => optional($cancellation->shift)->id,
-
-                    'title' => optional($cancellation->shift)->title,
-
-                    'specialization' => optional(optional($cancellation->shift)->specialization)->name,
-
-                    'hourly_rate' => optional($cancellation->shift)->hourly_rate,
-
-                    'shift_date' => optional($cancellation->shift)->shift_date,
-
-                    'start_time' => optional($cancellation->shift)->start_time,
-
-                    'end_time' => optional($cancellation->shift)->end_time,
-
-                    'address' => optional($cancellation->shift)->address,
-
-                    'status' => optional($cancellation->shift)->status,
-
+                    'id' => $shift?->id,
+                    'title' => $shift?->title,
+                    'specialization' => $shift?->specialization?->name,
+                    'hourly_rate' => $shift?->hourly_rate,
+                    'shift_date' => $shift?->shift_date,
+                    'start_time' => $shift?->start_time,
+                    'end_time' => $shift?->end_time,
+                    'address' => $shift?->address,
+                    'status' => $shift?->status,
                 ],
 
                 'clinic' => [
-
-                    'id' => optional($cancellation->clinic)->id,
-
-                    'name' => optional($cancellation->clinic)->name,
-
-                    'address' => optional($cancellation->clinic)->address,
-
-                    'phone' => optional($cancellation->clinic)->phone,
-
-                    'email' => optional(optional($cancellation->clinic)->recruiter)->email,
-
+                    'id' => $clinic?->id,
+                    'name' => $clinic?->name,
+                    'address' => $clinic?->address,
+                    'phone' => $clinic?->phone,
+                    'email' => $recruiter?->email,
                 ],
 
                 'created_at' => $cancellation->created_at,
-
-            ]
-
+            ],
         ]);
 
     } catch (\Throwable $e) {
 
         return response()->json([
             'status' => false,
-            'message' => $e->getMessage(),
-            'line' => $e->getLine(),
-            'file' => $e->getFile(),
-        ],500);
+            'message' => config('app.debug')
+                ? $e->getMessage()
+                : 'Something went wrong.',
+        ], 500);
     }
 }
-
 
 
 }

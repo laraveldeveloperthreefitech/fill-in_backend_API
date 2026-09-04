@@ -77,4 +77,5 @@ class FillinShift extends Model
         'fillin_shift_id'
     );
 }
+
 }

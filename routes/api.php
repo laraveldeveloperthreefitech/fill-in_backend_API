@@ -183,12 +183,10 @@ Route::prefix('recruiter')->group(function () {
 
                 Route::post('/update-cancellation-status', 'updateCancellationStatus');
                 
-                Route::post('/confirm-shift-completion', 'confirmShiftCompletion');
-                Route::get('/completed-fillin-shifts', 'completedFillinShifts');
             });
 
            
-                 Route::resource('branches', BranchController::class);
+           Route::resource('branches', BranchController::class);
         });
     });
 });
@@ -339,8 +337,6 @@ Route::prefix('candidate')->group(function () {
 
                 Route::get('/branch', 'branch');
 
-                Route::post('/complete-shift', 'completeShift');
-                Route::get('/completed-fillin-shifts', 'completedFillinShifts');
             });
     });
 });

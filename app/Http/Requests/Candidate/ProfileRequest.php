@@ -138,9 +138,7 @@ if ($this->hasFile('after_image')) {
             'profile' => $profile,
 
             'before_image' => json_encode($beforeImages),
-            
-
-'after_image' => json_encode($afterImages),
+            'after_image' => json_encode($afterImages),
 
             'document' => $document,
 

@@ -14,6 +14,8 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\DB;
+use App\Models\Branch;
 
 class RecruiterAuthController extends Controller
 {
@@ -25,46 +27,100 @@ class RecruiterAuthController extends Controller
      * @return void
      */
 
+    // public function login(Request $request)
+    // {
+    //     $validator = Validator::make($request->all(), [
+    //         'email' => 'required|email|exists:recruiters,email',
+    //         'password'  => 'required',
+    //         // 'fcm_token' => 'required',
+    //         'device_id' => 'required'
+    //     ]);
+
+    //     if ($validator->fails()) {
+    //         return $this->customValidationres($validator->errors()->first());
+    //     }
+    //     try {
+    //          $data = Recruiter::where('email', $request->email)->first();
+    //         $credentials = $request->only('email', 'password');
+    //         if (!$token = auth()->guard('recruiter')->attempt($credentials))
+    //             return $this->customErrorRes('Invalid credentials');
+
+    //         $expiresIn = auth()->guard('recruiter')->factory()->getTTL() * 43200;
+
+    //         if (!$data->verified)
+    //             return $this->customErrorRes('Account not verified. Please verify your email.');
+
+    //         if (!$data->status)
+    //             return $this->customErrorRes('Your account has been blocked by Fill-in. Please contact us for further assistance.');
+    //         if ($request->filled('fcm_token')) {
+    //             RecruiterFCMToken::updateOrCreate(
+    //                 ['device_id' => $request->device_id],
+    //                 [
+    //                     'recruiter_id'  =>  $data->id,
+    //                     'fcm_token'     => $request->fcm_token,
+    //                 ]
+    //             );
+    //         }
+    //         $token = ['token' => $token];
+    //         return $this->successResWithOtherData('Login successful', $data, $token);
+    //     } catch (\Exception $e) {
+    //         return $this->getExceptionResponse($e);
+    //     }
+    // }
+
     public function login(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|email|exists:recruiters,email',
-            'password'  => 'required',
-            // 'fcm_token' => 'required',
-            'device_id' => 'required'
+{
+    $validator = Validator::make($request->all(), [
+        'email'     => 'required|email|exists:recruiters,email',
+        'password'  => 'required',
+        'device_id' => 'required',
+    ]);
+
+    if ($validator->fails()) {
+        return $this->customValidationres($validator->errors()->first());
+    }
+
+    try {
+        $credentials = $request->only('email', 'password');
+
+        if (! $token = Auth::guard('recruiter')->attempt($credentials)) {
+            return $this->customErrorRes('Invalid credentials');
+        }
+
+        /** @var \App\Models\Recruiter $recruiter */
+        $recruiter = Auth::guard('recruiter')->user();
+
+        if (! $recruiter->verified) {
+            Auth::guard('recruiter')->logout();
+            return $this->customErrorRes('Account not verified. Please verify your email.');
+        }
+
+        if (! $recruiter->status) {
+            Auth::guard('recruiter')->logout();
+            return $this->customErrorRes('Your account has been blocked by Fill-in. Please contact us for further assistance.');
+        }
+
+        if ($request->filled('fcm_token')) {
+            RecruiterFCMToken::updateOrCreate(
+                ['device_id' => $request->device_id],
+                [
+                    'recruiter_id' => $recruiter->id,
+                    'fcm_token'    => $request->fcm_token,
+                ]
+            );
+        }
+
+        return response()->json([
+            'statusCode' => 200,
+            'status'     => 'success',
+            'message'    => 'Login successful',
+            'token'      => $token,
         ]);
 
-        if ($validator->fails()) {
-            return $this->customValidationres($validator->errors()->first());
-        }
-        try {
-            $data = Recruiter::where('email', $request->email)->first();
-            $credentials = $request->only('email', 'password');
-            if (!$token = auth()->guard('recruiter')->attempt($credentials))
-                return $this->customErrorRes('Invalid credentials');
-
-            $expiresIn = auth()->guard('recruiter')->factory()->getTTL() * 43200;
-
-            if (!$data->verified)
-                return $this->customErrorRes('Account not verified. Please verify your email.');
-
-            if (!$data->status)
-                return $this->customErrorRes('Your account has been blocked by Fill-in. Please contact us for further assistance.');
-            if ($request->filled('fcm_token')) {
-                RecruiterFCMToken::updateOrCreate(
-                    ['device_id' => $request->device_id],
-                    [
-                        'recruiter_id'  =>  $data->id,
-                        'fcm_token'     => $request->fcm_token,
-                    ]
-                );
-            }
-            $token = ['token' => $token];
-            return $this->successResWithOtherData('Login successful', $data, $token);
-        } catch (\Exception $e) {
-            return $this->getExceptionResponse($e);
-        }
+    } catch (\Exception $e) {
+        return $this->getExceptionResponse($e);
     }
+}
 
 
     /**
@@ -73,19 +129,31 @@ class RecruiterAuthController extends Controller
      * @param  mixed $request
      * @return void
      */
+    // public function register(RegisterRequest $request)
+    // {
+    //     try {
+    //         $data = Recruiter::create($request->requestData());
+    //         if ($data)
+    //             return $this->recordFoundWithResponse($data);
+    //         // return $this->customSuccessRes('Registration successful');
+    //         else
+    //             return $this->customErrorRes('Somthing went wrong.Please try again!');
+    //     } catch (\Exception $e) {
+    //         return $this->getExceptionResponse($e);
+    //     }
+    // }
+
     public function register(RegisterRequest $request)
-    {
-        try {
-            $data = Recruiter::create($request->requestData());
-            if ($data)
-                return $this->recordFoundWithResponse($data);
-            // return $this->customSuccessRes('Registration successful');
-            else
-                return $this->customErrorRes('Somthing went wrong.Please try again!');
-        } catch (\Exception $e) {
-            return $this->getExceptionResponse($e);
-        }
+{
+    try {
+        Recruiter::create($request->requestData());
+
+        return $this->customSuccessRes('Registration successful.');
+
+    } catch (\Exception $e) {
+        return $this->getExceptionResponse($e);
     }
+}
 
     /**
      * sendOtp for recruiter
@@ -312,58 +380,117 @@ class RecruiterAuthController extends Controller
      * @return void
      */
 
-    // public function updateProfile(ProfileRequest $request)
-    // {
-    //     try {
-    //         $data       = Recruiter::find(auth()->user()->id);
-    //         if ($data) {
-    //             $data->update($request->requestData());
-    //             Clinic::updateOrCreate(['recruiter_id' => auth()->guard('recruiter')->user()->id], $request->clinicData());
-    //             $data->dentistryPractices()->sync($request->dentistry);
-    //             $data->lookingFor()->sync($request->looking);
-    //             // $data->RoleInPractice()->sync($request->practice_role);
-    //             $data->useSoftware()->sync($request->use_software);
-    //             return $this->customSuccessRes('Profile Updated Successfully');
-    //         } else
-    //             return $this->customErrorRes('Somthing Went Wrong!');
-    //     } catch (\Exception $e) {
-    //         return $this->getExceptionResponse($e);
-    //     }
-    // }
 
-//   public function updateProfile(ProfileRequest $request)
-//     {
-//         try {
-//             $data       = Recruiter::find(auth()->user()->id);
-//             if($data){
-//                 $data->update($request->requestData());
-//                 Clinic::updateOrCreate(['recruiter_id' => auth()->guard('recruiter')->user()->id],$request->clinicData());
-//                 $data->dentistryPractices()->sync($request->dentistry);
-//                 $data->lookingFor()->sync($request->looking);
-//                 // $data->RoleInPractice()->sync($request->practice_role);
-//                 $data->useSoftware()->sync($request->use_software);
-//                 return $this->customSuccessRes('Profile Updated Successfully');
-//             }
-//             else
-//                 return $this->customErrorRes('Somthing Went Wrong!');
-//         } catch (\Exception $e) {
-//             return $this->getExceptionResponse($e);
+// public function updateProfile(ProfileRequest $request)
+// {
+//     try {
+
+//         $recruiter = Recruiter::find(
+//             auth()->guard('recruiter')->id()
+//         );
+
+//         if (!$recruiter) {
+
+//             return response()->json([
+//                 'status' => false,
+//                 'message' => 'Recruiter not found'
+//             ], 404);
 //         }
+
+//         /*
+//         |--------------------------------------------------------------------------
+//         | UPDATE RECRUITER
+//         |--------------------------------------------------------------------------
+//         */
+
+//         $recruiter->update(
+//             $request->requestData()
+//         );
+
+//         /*
+//         |--------------------------------------------------------------------------
+//         | UPDATE CLINIC
+//         |--------------------------------------------------------------------------
+//         */
+
+//         Clinic::updateOrCreate(
+//             [
+//                 'recruiter_id' => $recruiter->id
+//             ],
+//             $request->clinicData()
+//         );
+
+//         /*
+//         |--------------------------------------------------------------------------
+//         | SYNC RELATIONS
+//         |--------------------------------------------------------------------------
+//         */
+
+//         $recruiter->dentistryPractices()->sync(
+//             $request->dentistry ?? []
+//         );
+
+//         $recruiter->lookingFor()->sync(
+//             $request->looking ?? []
+//         );
+
+//         $recruiter->useSoftware()->sync(
+//             $request->use_software ?? []
+//         );
+
+//         /*
+//         |--------------------------------------------------------------------------
+//         | REFRESH RELATIONS
+//         |--------------------------------------------------------------------------
+//         */
+
+//         $recruiter->load([
+//             'clinic',
+//             'review',
+//             'lookingFor',
+//             'dentistryPractices',
+//             'useSoftware',
+//     'branches',
+//         ]);
+
+//         return response()->json([
+
+//             'status' => true,
+
+//             'message' => 'Profile Updated Successfully',
+
+//             'data' => new RecruiterResource($recruiter)
+
+//         ], 200);
+
+//     } catch (\Exception $e) {
+
+//         return response()->json([
+
+//             'status' => false,
+
+//             'message' => $e->getMessage(),
+
+//             'line' => $e->getLine(),
+
+//             'file' => $e->getFile()
+
+//         ], 500);
 //     }
+// }
+
+
 
 public function updateProfile(ProfileRequest $request)
 {
     try {
 
-        $recruiter = Recruiter::find(
-            auth()->guard('recruiter')->id()
-        );
+        $recruiter = Recruiter::find(auth()->guard('recruiter')->id());
 
         if (!$recruiter) {
-
             return response()->json([
-                'status' => false,
-                'message' => 'Recruiter not found'
+                'status'  => false,
+                'message' => 'Recruiter not found',
             ], 404);
         }
 
@@ -373,9 +500,7 @@ public function updateProfile(ProfileRequest $request)
         |--------------------------------------------------------------------------
         */
 
-        $recruiter->update(
-            $request->requestData()
-        );
+        $recruiter->update($request->requestData());
 
         /*
         |--------------------------------------------------------------------------
@@ -385,10 +510,40 @@ public function updateProfile(ProfileRequest $request)
 
         Clinic::updateOrCreate(
             [
-                'recruiter_id' => $recruiter->id
+                'recruiter_id' => $recruiter->id,
             ],
             $request->clinicData()
         );
+
+        /*
+        |--------------------------------------------------------------------------
+        | UPDATE BRANCHES
+        |--------------------------------------------------------------------------
+        */
+
+        Branch::where('recruiter_id', $recruiter->id)->delete();
+
+        if ($request->filled('branch') && is_array($request->branch)) {
+
+            $branches = collect($request->branch)
+                ->map(fn($branch) => trim($branch))
+                ->filter()
+                ->unique()
+                ->map(function ($branch) use ($recruiter) {
+                    return [
+                        'recruiter_id' => $recruiter->id,
+                        'name'         => $branch,
+                        'created_at'   => now(),
+                        'updated_at'   => now(),
+                    ];
+                })
+                ->values()
+                ->toArray();
+
+            if (!empty($branches)) {
+                Branch::insert($branches);
+            }
+        }
 
         /*
         |--------------------------------------------------------------------------
@@ -396,55 +551,38 @@ public function updateProfile(ProfileRequest $request)
         |--------------------------------------------------------------------------
         */
 
-        $recruiter->dentistryPractices()->sync(
-            $request->dentistry ?? []
-        );
-
-        $recruiter->lookingFor()->sync(
-            $request->looking ?? []
-        );
-
-        $recruiter->useSoftware()->sync(
-            $request->use_software ?? []
-        );
+        $recruiter->dentistryPractices()->sync($request->dentistry ?? []);
+        $recruiter->lookingFor()->sync($request->looking ?? []);
+        $recruiter->useSoftware()->sync($request->use_software ?? []);
 
         /*
         |--------------------------------------------------------------------------
-        | REFRESH RELATIONS
+        | LOAD RELATIONS
         |--------------------------------------------------------------------------
         */
 
         $recruiter->load([
             'clinic',
+            'branches',
             'review',
             'lookingFor',
             'dentistryPractices',
             'useSoftware',
-    'branches',
         ]);
 
         return response()->json([
-
-            'status' => true,
-
+            'status'  => true,
             'message' => 'Profile Updated Successfully',
-
-            'data' => new RecruiterResource($recruiter)
-
+            'data'    => new RecruiterResource($recruiter),
         ], 200);
 
     } catch (\Exception $e) {
 
         return response()->json([
-
-            'status' => false,
-
+            'status'  => false,
             'message' => $e->getMessage(),
-
-            'line' => $e->getLine(),
-
-            'file' => $e->getFile()
-
+            'line'    => $e->getLine(),
+            'file'    => $e->getFile(),
         ], 500);
     }
 }

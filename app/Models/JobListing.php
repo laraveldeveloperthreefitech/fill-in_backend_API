@@ -7,7 +7,7 @@ use App\Models\{CandidateSearch,CandidateRecentSearch};
 
 class JobListing extends Model
 {
-    protected $fillable = ['id', 'title', 'clinic_id','city','salary_range_from', 'specialization_id', 'urgent','vacancy', 'shift', 'salary_range_to', 'experiance_level', 'job_description', 'require_detail', 'benefits', 'expire_date', 'latitude', 'longitude', 'require_document', 'address', 'short_address', 'status', 'created_at', 'updated_at'];
+    protected $fillable = ['id', 'title', 'clinic_id','city','other_software','salary_range_from', 'specialization_id', 'urgent','vacancy', 'shift', 'salary_range_to', 'experiance_level', 'job_description', 'require_detail', 'benefits', 'expire_date', 'latitude', 'longitude', 'require_document', 'address', 'short_address', 'status', 'created_at', 'updated_at'];
     
     public function clinic(){
         return $this->belongsTo(Clinic::class);
@@ -74,23 +74,7 @@ class JobListing extends Model
     public function scopeApiSearch($query, $search)
     {
         $hasSearch = !empty($search->search);
-
-        // Effective location + radius. Prefer values passed on the request;
-        // otherwise fall back to the logged-in candidate's saved profile so the
-        // radius the candidate configured actually filters the job list even
-        // when the app doesn't send coordinates.
-        $authCandidate = auth()->guard('candidate')->user();
-        // Global default radius set in the Admin Panel (settings.radius).
-        $globalRadius = optional(\App\Models\Setting::first())->radius;
-        $searchLat    = !empty($search->latitude)  ? $search->latitude  : ($authCandidate->latitude  ?? null);
-        $searchLng    = !empty($search->longitude) ? $search->longitude : ($authCandidate->longitude ?? null);
-        // Priority: request radius -> candidate profile radius -> admin global -> 50 km.
-        $searchRadius = !empty($search->radius)
-            ? $search->radius
-            : (!empty($authCandidate->radius)
-                ? $authCandidate->radius
-                : (!empty($globalRadius) ? $globalRadius : 50));
-        $hasLocation = !empty($searchLat) && !empty($searchLng);
+        $hasLocation = !empty($search->latitude) && !empty($search->longitude);
 
         if ($search->search) {
             $term        = trim($search->search);
@@ -145,14 +129,14 @@ class JobListing extends Model
         }
 
         if ($hasLocation) {
-            $latitude = $searchLat;
-            $longitude = $searchLng;
-            $radius = $searchRadius ? $searchRadius : 50; // 50 km
+            $latitude = $search->latitude;
+            $longitude = $search->longitude;
+            $radius = $search->radius ? $search->radius : 50; // 50 km
 
-            $haversine = "(6371 * acos(cos(radians($latitude))
-                            * cos(radians(latitude))
-                            * cos(radians(longitude) - radians($longitude))
-                            + sin(radians($latitude))
+            $haversine = "(6371 * acos(cos(radians($latitude)) 
+                            * cos(radians(latitude)) 
+                            * cos(radians(longitude) - radians($longitude)) 
+                            + sin(radians($latitude)) 
                             * sin(radians(latitude))))";
 
             $query->select('*')
@@ -199,6 +183,9 @@ class JobListing extends Model
         }
      }
 
+
+
+
      public function branches()
 {
     return $this->belongsToMany(
@@ -208,7 +195,6 @@ class JobListing extends Model
         'branch_id'
     );
 }
-
 
 
 }

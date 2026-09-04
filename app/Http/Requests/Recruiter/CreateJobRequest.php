@@ -12,16 +12,13 @@ class CreateJobRequest extends FormRequest
 {
     use RestResponse;
 
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
     /**
-     * Prepare request data
+     * Data for JobListing model
      */
     public function requestData()
     {
@@ -45,7 +42,7 @@ class CreateJobRequest extends FormRequest
 
             'job_description'   => $this->job_description,
 
-            'benefits'          => $this->benefits
+            'benefits'          => is_array($this->benefits)
                 ? implode(',', $this->benefits)
                 : null,
 
@@ -53,13 +50,8 @@ class CreateJobRequest extends FormRequest
 
             'expire_date'       => $this->expire_date,
 
-            'shift'             => $this->shift
+            'shift'             => is_array($this->shift)
                 ? implode(',', $this->shift)
-                : null,
-
-            // Save selected recruiter branches
-            'branch'            => $this->branch
-                ? implode(',', $this->branch)
                 : null,
 
             'vacancy'           => $this->vacancy,
@@ -95,19 +87,34 @@ class CreateJobRequest extends FormRequest
 
             /*
             |--------------------------------------------------------------------------
-            | Branch
+            | Branches
             |--------------------------------------------------------------------------
             */
 
-           'branch_ids' => 'required|array|min:1',
+            'branch_ids' => 'required|array|min:1',
 
-'branch_ids.*' => [
-    'integer',
-    Rule::exists('branches', 'id')
-        ->where(function ($query) use ($recruiterId) {
-            $query->where('recruiter_id', $recruiterId);
-        }),
-],
+            'branch_ids.*' => [
+
+                'required',
+
+                'integer',
+
+                Rule::exists('branches', 'id')
+                    ->where(function ($query) use ($recruiterId) {
+                        $query->where('recruiter_id', $recruiterId);
+                    }),
+
+            ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Benefits
+            |--------------------------------------------------------------------------
+            */
+
+            'benefits' => 'nullable|array',
+
+            'benefits.*' => 'string',
 
             /*
             |--------------------------------------------------------------------------
@@ -117,7 +124,7 @@ class CreateJobRequest extends FormRequest
 
             'shift' => 'nullable|array',
 
-            'shift.*' => 'nullable|string',
+            'shift.*' => 'string',
 
             /*
             |--------------------------------------------------------------------------
@@ -153,7 +160,7 @@ class CreateJobRequest extends FormRequest
 
             /*
             |--------------------------------------------------------------------------
-            | Job Details
+            | Job
             |--------------------------------------------------------------------------
             */
 
@@ -175,12 +182,6 @@ class CreateJobRequest extends FormRequest
 
             'longitude' => 'required',
 
-            /*
-            |--------------------------------------------------------------------------
-            | Urgent
-            |--------------------------------------------------------------------------
-            */
-
             'urgent' => 'nullable|boolean',
         ];
     }
@@ -188,19 +189,12 @@ class CreateJobRequest extends FormRequest
     /**
      * Validation Response
      */
-    public function failedValidation(Validator $validator)
+    protected function failedValidation(Validator $validator)
     {
-        if ($this->expectsJson()) {
-
-            throw new HttpResponseException(
-
-                $this->customValidationres(
-                    $validator->errors()->first()
-                )
-
-            );
-        }
-
-        parent::failedValidation($validator);
+        throw new HttpResponseException(
+            $this->customValidationres(
+                $validator->errors()->first()
+            )
+        );
     }
 }

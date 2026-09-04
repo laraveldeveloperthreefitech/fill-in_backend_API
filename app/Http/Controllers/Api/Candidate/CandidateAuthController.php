@@ -15,6 +15,7 @@ use Tymon\JWTAuth\Facades\JWTAuth;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Validator;
 use App\Models\CandidateFCMToken;
+ use Illuminate\Support\Facades\DB;
 
 class CandidateAuthController extends Controller
 {
@@ -30,48 +31,101 @@ class CandidateAuthController extends Controller
      * @param  mixed $request
      * @return void
      */
-    public function login(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'email' => 'required|email|exists:candidates,email',
-            'password'  => 'required',
-            // 'fcm_token' => 'required',
-            'device_id' => 'required'
-       ]);
+    // public function login(Request $request)
+    // {
+    //     $validator = Validator::make($request->all(), [
+    //         'email' => 'required|email|exists:candidates,email',
+    //         'password'  => 'required',
+    //         // 'fcm_token' => 'required',
+    //         'device_id' => 'required'
+    //    ]);
 
-        if ($validator->fails()) {
-            return $this->customValidationres($validator->errors()->first());
-        }
-        try{
-            $data = Candidate::where('email', $request->email)->first();
-            $credentials = $request->only('email', 'password');
-            if (!$token = auth()->guard('candidate')->attempt($credentials))
-                return $this->customErrorRes('Invalid credentials');
+    //     if ($validator->fails()) {
+    //         return $this->customValidationres($validator->errors()->first());
+    //     }
+    //     try{
+    //         $data = Candidate::where('email', $request->email)->first();
+    //         $credentials = $request->only('email', 'password');
+    //         if (!$token = auth()->guard('candidate')->attempt($credentials))
+    //             return $this->customErrorRes('Invalid credentials');
 
-            $expiresIn = auth()->guard('candidate')->factory()->getTTL() * 43200;
+    //         $expiresIn = auth()->guard('candidate')->factory()->getTTL() * 43200;
 
-            if (!$data->verified) 
-                return $this->customErrorRes('Account not verified. Please verify your email.');
+    //         if (!$data->verified) 
+    //             return $this->customErrorRes('Account not verified. Please verify your email.');
 
-            if (!$data->status) 
-                return $this->customErrorRes('Your account has been blocked by Fill-in. Please contact us for further assistance.');
+    //         if (!$data->status) 
+    //             return $this->customErrorRes('Your account has been blocked by Fill-in. Please contact us for further assistance.');
 
-            if ($request->filled('fcm_token')) {
-                CandidateFCMToken::updateOrCreate(
-                    ['device_id' => $request->device_id],
-                    [
-                        'candidate_id'  =>  $data->id,
-                        'fcm_token'     => $request->fcm_token,
-                    ]
-                );
-            }
+    //         if ($request->filled('fcm_token')) {
+    //             CandidateFCMToken::updateOrCreate(
+    //                 ['device_id' => $request->device_id],
+    //                 [
+    //                     'candidate_id'  =>  $data->id,
+    //                     'fcm_token'     => $request->fcm_token,
+    //                 ]
+    //             );
+    //         }
           
-            $token = ['token' => $token];
-            return $this->successResWithOtherData('Login successful',$data,$token);
-        }catch (\Exception $e) {
-            return $this->getExceptionResponse($e);
-        }
+    //         $token = ['token' => $token];
+    //         return $this->successResWithOtherData('Login successful',$data,$token);
+    //     }catch (\Exception $e) {
+    //         return $this->getExceptionResponse($e);
+    //     }
+    // }
+
+    public function login(Request $request)
+{
+    $validator = Validator::make($request->all(), [
+        'email'     => 'required|email',
+        'password'  => 'required',
+        'device_id' => 'required',
+    ]);
+
+    if ($validator->fails()) {
+        return $this->customValidationres($validator->errors()->first());
     }
+
+    try {
+        $credentials = $request->only('email', 'password');
+
+        if (! $token = Auth::guard('candidate')->attempt($credentials)) {
+            return $this->customErrorRes('Invalid credentials');
+        }
+
+        /** @var \App\Models\Candidate $candidate */
+        $candidate = Auth::guard('candidate')->user();
+
+        if (! $candidate->verified) {
+            Auth::guard('candidate')->logout();
+            return $this->customErrorRes('Account not verified. Please verify your email.');
+        }
+
+        if (! $candidate->status) {
+            Auth::guard('candidate')->logout();
+            return $this->customErrorRes('Your account has been blocked by Fill-in. Please contact us for further assistance.');
+        }
+
+        if ($request->filled('fcm_token')) {
+            CandidateFCMToken::updateOrCreate(
+                ['device_id' => $request->device_id],
+                [
+                    'candidate_id' => $candidate->id,
+                    'fcm_token'    => $request->fcm_token,
+                ]
+            );
+        }
+
+        return response()->json([
+            'statusCode' => 200,
+            'status'     => 'success',
+            'message'    => 'Login successful',
+            'token'      => $token,
+        ]);
+    } catch (\Exception $e) {
+        return $this->getExceptionResponse($e);
+    }
+}
 
     
     /**
@@ -80,20 +134,32 @@ class CandidateAuthController extends Controller
      * @param  mixed $request
      * @return void
      */
-    public function register(RegisterRequest $request)
-    {
-        try{
-            $data = Candidate::create($request->requestData());
-            if($data){
+    // public function register(RegisterRequest $request)
+    // {
+    //     try{
+    //         $data = Candidate::create($request->requestData());
+    //         if($data){
                 
-                return $this->customSuccessRes('Registration successful');
-            }
-            else
-                return $this->customErrorRes('Somthing went wrong.Please try again!');
-        }catch (\Exception $e) {
-            return $this->getExceptionResponse($e);
-        }
+    //             return $this->customSuccessRes('Registration successful');
+    //         }
+    //         else
+    //             return $this->customErrorRes('Somthing went wrong.Please try again!');
+    //     }catch (\Exception $e) {
+    //         return $this->getExceptionResponse($e);
+    //     }
+    // }
+
+    public function register(RegisterRequest $request)
+{
+    try {
+        Candidate::create($request->requestData());
+
+        return $this->customSuccessRes('Registration successful.');
+
+    } catch (\Exception $e) {
+        return $this->getExceptionResponse($e);
     }
+}
     
     /**
      * sendOtp for recruiter
@@ -199,71 +265,32 @@ class CandidateAuthController extends Controller
      * @param  mixed $request
      * @return void
      */
-    // public function updateProfile(ProfileRequest $request)
-    // {
-    //     try {
-       
-    //         $data       = Candidate::find(auth()->user()->id);
-    //         $update     = $data->update($request->requestData());
-    //         if($update){
-    //             $data->software_experiance()->sync($request->software_experiance);
-    //             $data->qualification()->sync($request->qualification);
-    //             $data->languages()->sync($request->language);
-    //             $data->Vaccination()->sync($request->vaccination);
-            	
-    //             $this->sendRecNotification($data);
-    //             return $this->customSuccessRes('Profile Updated Successfully');
-    //         }else{
-    //             return $this->customErrorRes('Somthing Went Wrong!');
-    //         }
-    //     } catch (\Exception $e) {
-    //         return $this->getExceptionResponse($e);
-    //     }
-    // }
-    
-    
-    //     public function updateProfile(ProfileRequest $request)
-    // {
-    //     try {
-       
-    //         $data       = Candidate::find(auth()->user()->id);
-    //         $update     = $data->update($request->requestData());
-    //         if($update){
-    //             $data->software_experiance()->sync($request->software_experiance);
-    //             $data->qualification()->sync($request->qualification);
-    //             $data->languages()->sync($request->language);
-    //             $data->Vaccination()->sync($request->vaccination);
-            	
-    //             $this->sendRecNotification($data);
-    //             return $this->customSuccessRes('Profile Updated Successfully');
-    //         }else{
-    //             return $this->customErrorRes('Somthing Went Wrong!');
-    //         }
-    //     } catch (\Exception $e) {
-    //         return $this->getExceptionResponse($e);
-    //     }
-    // }
-    
-    public function updateProfile(ProfileRequest $request)
+   
+
+public function updateProfile(ProfileRequest $request)
 {
+    DB::beginTransaction();
+
     try {
 
-        $candidate = Candidate::find(auth()->guard('candidate')->id());
+        $candidate = auth()->guard('candidate')->user();
 
         if (!$candidate) {
             return response()->json([
-                'status' => false,
+                'status'  => false,
                 'message' => 'Candidate not found'
             ], 404);
         }
 
         /*
         |--------------------------------------------------------------------------
-        | UPDATE PROFILE
+        | UPDATE CANDIDATE
         |--------------------------------------------------------------------------
         */
 
-        $candidate->update($request->requestData());
+        $candidate->update(
+            $request->requestData()
+        );
 
         /*
         |--------------------------------------------------------------------------
@@ -271,85 +298,10 @@ class CandidateAuthController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $softwareIds = collect($request->software_experiance ?? [])
-            ->map(function ($item) {
-                if (is_numeric($item)) {
-                    return (int) $item;
-                }
-
-                if (is_array($item)) {
-                    return $item['id'] ?? null;
-                }
-
-                if (is_object($item)) {
-                    return $item->id ?? null;
-                }
-
-                return null;
-            })
-            ->filter()
-            ->values()
-            ->toArray();
-
-        $qualificationIds = collect($request->qualification ?? [])
-            ->map(function ($item) {
-                if (is_numeric($item)) {
-                    return (int) $item;
-                }
-
-                if (is_array($item)) {
-                    return $item['id'] ?? null;
-                }
-
-                if (is_object($item)) {
-                    return $item->id ?? null;
-                }
-
-                return null;
-            })
-            ->filter()
-            ->values()
-            ->toArray();
-
-        $languageIds = collect($request->language ?? [])
-            ->map(function ($item) {
-                if (is_numeric($item)) {
-                    return (int) $item;
-                }
-
-                if (is_array($item)) {
-                    return $item['id'] ?? null;
-                }
-
-                if (is_object($item)) {
-                    return $item->id ?? null;
-                }
-
-                return null;
-            })
-            ->filter()
-            ->values()
-            ->toArray();
-
-        $vaccinationIds = collect($request->vaccination ?? [])
-            ->map(function ($item) {
-                if (is_numeric($item)) {
-                    return (int) $item;
-                }
-
-                if (is_array($item)) {
-                    return $item['id'] ?? null;
-                }
-
-                if (is_object($item)) {
-                    return $item->id ?? null;
-                }
-
-                return null;
-            })
-            ->filter()
-            ->values()
-            ->toArray();
+        $softwareIds      = $this->extractIds($request->software_experiance);
+        $qualificationIds = $this->extractIds($request->qualification);
+        $languageIds      = $this->extractIds($request->language);
+        $vaccinationIds   = $this->extractIds($request->vaccination);
 
         /*
         |--------------------------------------------------------------------------
@@ -358,11 +310,8 @@ class CandidateAuthController extends Controller
         */
 
         $candidate->software_experiance()->sync($softwareIds);
-
         $candidate->qualification()->sync($qualificationIds);
-
         $candidate->languages()->sync($languageIds);
-
         $candidate->Vaccination()->sync($vaccinationIds);
 
         /*
@@ -373,6 +322,8 @@ class CandidateAuthController extends Controller
 
         $this->sendRecNotification($candidate);
 
+        DB::commit();
+
         /*
         |--------------------------------------------------------------------------
         | LOAD RELATIONS
@@ -380,28 +331,221 @@ class CandidateAuthController extends Controller
         */
 
         $candidate->load([
-            'software_experiance',
-            'qualification',
-            'languages',
-            'Vaccination'
+            'software_experiance:id,name',
+            'qualification:id,name',
+            'languages:id,name',
+            'Vaccination:id,name',
         ]);
 
         return response()->json([
-            'status' => true,
+            'status'  => true,
             'message' => 'Profile Updated Successfully',
-            'data' => new CandidateResource($candidate)
+            'data'    => new CandidateResource($candidate)
         ], 200);
 
     } catch (\Exception $e) {
 
+        DB::rollBack();
+
         return response()->json([
-            'status' => false,
+            'status'  => false,
             'message' => $e->getMessage(),
-            'line' => $e->getLine(),
-            'file' => $e->getFile()
+            'line'    => $e->getLine(),
+            'file'    => $e->getFile()
         ], 500);
     }
 }
+
+/*
+|--------------------------------------------------------------------------
+| HELPER METHOD
+|--------------------------------------------------------------------------
+*/
+
+private function extractIds($items): array
+{
+    return collect($items ?? [])
+        ->map(function ($item) {
+
+            if (is_numeric($item)) {
+                return (int) $item;
+            }
+
+            if (is_array($item)) {
+                return $item['id'] ?? null;
+            }
+
+            if (is_object($item)) {
+                return $item->id ?? null;
+            }
+
+            return null;
+
+        })
+        ->filter()
+        ->unique()
+        ->values()
+        ->toArray();
+}
+    
+//     public function updateProfile(ProfileRequest $request)
+// {
+//     try {
+
+//         $candidate = Candidate::find(auth()->guard('candidate')->id());
+
+//         if (!$candidate) {
+//             return response()->json([
+//                 'status' => false,
+//                 'message' => 'Candidate not found'
+//             ], 404);
+//         }
+
+//         /*
+//         |--------------------------------------------------------------------------
+//         | UPDATE PROFILE
+//         |--------------------------------------------------------------------------
+//         */
+
+//         $candidate->update($request->requestData());
+
+//         /*
+//         |--------------------------------------------------------------------------
+//         | EXTRACT IDS
+//         |--------------------------------------------------------------------------
+//         */
+
+//         $softwareIds = collect($request->software_experiance ?? [])
+//             ->map(function ($item) {
+//                 if (is_numeric($item)) {
+//                     return (int) $item;
+//                 }
+
+//                 if (is_array($item)) {
+//                     return $item['id'] ?? null;
+//                 }
+
+//                 if (is_object($item)) {
+//                     return $item->id ?? null;
+//                 }
+
+//                 return null;
+//             })
+//             ->filter()
+//             ->values()
+//             ->toArray();
+
+//         $qualificationIds = collect($request->qualification ?? [])
+//             ->map(function ($item) {
+//                 if (is_numeric($item)) {
+//                     return (int) $item;
+//                 }
+
+//                 if (is_array($item)) {
+//                     return $item['id'] ?? null;
+//                 }
+
+//                 if (is_object($item)) {
+//                     return $item->id ?? null;
+//                 }
+
+//                 return null;
+//             })
+//             ->filter()
+//             ->values()
+//             ->toArray();
+
+//         $languageIds = collect($request->language ?? [])
+//             ->map(function ($item) {
+//                 if (is_numeric($item)) {
+//                     return (int) $item;
+//                 }
+
+//                 if (is_array($item)) {
+//                     return $item['id'] ?? null;
+//                 }
+
+//                 if (is_object($item)) {
+//                     return $item->id ?? null;
+//                 }
+
+//                 return null;
+//             })
+//             ->filter()
+//             ->values()
+//             ->toArray();
+
+//         $vaccinationIds = collect($request->vaccination ?? [])
+//             ->map(function ($item) {
+//                 if (is_numeric($item)) {
+//                     return (int) $item;
+//                 }
+
+//                 if (is_array($item)) {
+//                     return $item['id'] ?? null;
+//                 }
+
+//                 if (is_object($item)) {
+//                     return $item->id ?? null;
+//                 }
+
+//                 return null;
+//             })
+//             ->filter()
+//             ->values()
+//             ->toArray();
+
+//         /*
+//         |--------------------------------------------------------------------------
+//         | SYNC RELATIONS
+//         |--------------------------------------------------------------------------
+//         */
+
+//         $candidate->software_experiance()->sync($softwareIds);
+
+//         $candidate->qualification()->sync($qualificationIds);
+
+//         $candidate->languages()->sync($languageIds);
+
+//         $candidate->Vaccination()->sync($vaccinationIds);
+
+//         /*
+//         |--------------------------------------------------------------------------
+//         | SEND NOTIFICATION
+//         |--------------------------------------------------------------------------
+//         */
+
+//         $this->sendRecNotification($candidate);
+
+//         /*
+//         |--------------------------------------------------------------------------
+//         | LOAD RELATIONS
+//         |--------------------------------------------------------------------------
+//         */
+
+//         $candidate->load([
+//             'software_experiance',
+//             'qualification',
+//             'languages',
+//             'Vaccination'
+//         ]);
+
+//         return response()->json([
+//             'status' => true,
+//             'message' => 'Profile Updated Successfully',
+//             'data' => new CandidateResource($candidate)
+//         ], 200);
+
+//     } catch (\Exception $e) {
+
+//         return response()->json([
+//             'status' => false,
+//             'message' => $e->getMessage(),
+//             'line' => $e->getLine(),
+//             'file' => $e->getFile()
+//         ], 500);
+//     }
+// }
 
 
 

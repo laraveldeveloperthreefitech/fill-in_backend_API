@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\Api\Recruiter;
 
 use App\Http\Controllers\Controller;
 use App\Models\Branch;
@@ -9,7 +9,6 @@ use Illuminate\Http\Request;
 
 class BranchController extends Controller
 {
-    
 
     /**
      * Branch List
